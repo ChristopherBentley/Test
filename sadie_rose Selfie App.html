@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Sadie Rose</title>
+<style>
+  :root { --bg: #0f1115; --fg: #eef2f7; --muted:#a7b0c0; --accent:#f48fb1; }
+  html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: -apple-system, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial; }
+  .app { display:grid; grid-template-rows:auto 1fr auto; height:100%; }
+  header { padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; border-bottom:1px solid #1a1e27; }
+  header h1 { font-size:16px; margin:0; font-weight:600; letter-spacing:.2px; color:var(--accent);}
+  header .controls { display:flex; gap:10px; flex:1; align-items:center; flex-wrap:wrap; }
+  select, button, input[type="range"] {
+    background:#151a22; border:1px solid #2a3140; color:var(--fg);
+    border-radius:10px; padding:10px 12px; font-size:14px;
+  }
+  button.primary { background: var(--accent); color:#0b1220; border:0; font-weight:700; }
+  main { position:relative; display:grid; place-items:center; padding:10px; }
+  .stage { position:relative; width:min(92vw, 900px); aspect-ratio:3/4; background:#000; border-radius:16px; overflow:hidden; border:1px solid #1a1e27; }
+  video, canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  footer { padding:10px 14px; font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Sadie Rose ✨</h1>
+    <div class="controls">
+      <label>Filter</label>
+      <select id="filterSelect">
+        <option value="beauty">Beauty</option>
+        <option value="makeup">Makeup</option>
+        <option value="cartoon">Cartoon</option>
+        <option value="puppy">Puppy 🐶</option>
+        <option value="rainbow">Rainbow Puke 🌈🤮</option>
+        <option value="tiara">Princess Tiara 👑</option>
+        <option value="roses">Roses 🌹</option>
+        <option value="none">None</option>
+      </select>
+      <input id="strength" type="range" min="0" max="100" value="60" />
+      <button id="flipBtn">Flip Camera</button>
+      <button id="snapBtn" class="primary">Take Photo</button>
+      <a id="downloadLink" style="display:none; margin-left:6px;">Download</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="canvas"></canvas>
+    </div>
+  </main>
+
+  <footer>
+    <span>No accounts. Everything stays on your iPad. 🌸</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script>
+(function(){
+  const video=document.getElementById('video'),canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const sel=document.getElementById('filterSelect'),strengthEl=document.getElementById('strength'),snapBtn=document.getElementById('snapBtn'),flipBtn=document.getElementById('flipBtn'),dl=document.getElementById('downloadLink');
+  let currentFacing='user',latestResults=null,faceMesh=null,cam=null;
+
+  function fitCanvas(){const r=canvas.getBoundingClientRect();canvas.width=r.width;canvas.height=r.height;}
+  window.addEventListener('resize',fitCanvas);
+
+  async function startCamera(){
+    if(cam){try{await cam.stop();}catch(e){}}
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacing},audio:false});
+    video.srcObject=stream;await video.play();
+  }
+
+  function setupFaceMesh(){
+    faceMesh=new FaceMesh.FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+    faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true});
+    faceMesh.onResults(r=>{latestResults=r;});
+    cam=new CameraUtils.Camera(video,{onFrame:async()=>{await faceMesh.send({image:video});}});
+    cam.start();
+  }
+
+  function mapLandmarks(lms){const w=canvas.width,h=canvas.height;return lms.map(p=>({x:p.x*w,y:p.y*h}));}
+
+  function drawRainbow(mapped,t){
+    const mouth= [13,14,17,0,37].map(i=>mapped[i]); // rough mouth area
+    const m=mouth[0];
+    const w=canvas.width*0.2, h=canvas.height*0.5;
+    const grad=ctx.createLinearGradient(m.x,m.y,m.x,m.y+h);
+    grad.addColorStop(0,'red');grad.addColorStop(0.17,'orange');grad.addColorStop(0.33,'yellow');grad.addColorStop(0.5,'green');grad.addColorStop(0.67,'blue');grad.addColorStop(0.83,'indigo');grad.addColorStop(1,'violet');
+    ctx.save();
+    ctx.globalAlpha=0.7;
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.rect(m.x-w/2,m.y,w,h);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawTiara(mapped,t){
+    const f=mapped[10]; // forehead
+    const cx=f.x, cy=f.y - canvas.height*0.15;
+    const size=canvas.width*0.4;
+    ctx.save();
+    ctx.fillStyle='gold';ctx.strokeStyle='darkgoldenrod';ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(cx-size/2,cy);
+    ctx.lineTo(cx,cy-size*0.7);
+    ctx.lineTo(cx+size/2,cy);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle='pink';
+    ctx.beginPath();ctx.arc(cx,cy-size*0.4, size*0.12,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+
+  function drawRoses(mapped,t){
+    const f=mapped[10];
+    const cx=f.x, cy=f.y - canvas.height*0.05;
+    const radius=canvas.width*0.05;
+    ctx.save();
+    for(let i=-2;i<=2;i++){
+      const x=cx+i*radius*1.6;
+      const y=cy-Math.abs(i)*radius*0.3;
+      ctx.fillStyle='crimson';
+      ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='darkred';ctx.stroke();
+      ctx.fillStyle='green';
+      ctx.fillRect(x-2,y+radius,4,10);
+    }
+    ctx.restore();
+  }
+
+  function drawFrame(){
+    fitCanvas();
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    if(latestResults && latestResults.multiFaceLandmarks.length>0){
+      const mapped=mapLandmarks(latestResults.multiFaceLandmarks[0]);
+      const t=Number(strengthEl.value)/100;
+      if(sel.value==='rainbow') drawRainbow(mapped,t);
+      if(sel.value==='tiara') drawTiara(mapped,t);
+      if(sel.value==='roses') drawRoses(mapped,t);
+    }
+    requestAnimationFrame(drawFrame);
+  }
+
+  snapBtn.addEventListener('click',()=>{const data=canvas.toDataURL('image/png');dl.href=data;dl.download='sadie-rose.png';dl.textContent='Download';dl.style.display='inline';});
+  flipBtn.addEventListener('click',async()=>{currentFacing=currentFacing==='user'?'environment':'user';await startCamera();setupFaceMesh();});
+  async function init(){await startCamera();setupFaceMesh();requestAnimationFrame(drawFrame);}
+  init();
+})();
+</script>
+</body>
+</html>
